@@ -7,12 +7,12 @@ const {
   Events
 } = require('discord.js');
 
-module.exports = async (client) => {
-  const canalPostulacionesId = '1402040366282047609';
-  const categoriaTicketsId = '1401657156935356558';
-  const canalAuditoriaId = '1402039588108636242';
-  const staffRoleIds = ['1402042683366572032', '1402043308834033705'];
+const canalPostulacionesId = '1402040366282047609';
+const categoriaTicketsId = '1401657156935356558';
+const canalAuditoriaId = '1402039588108636242';
+const staffRoleIds = ['1402042683366572032', '1402043308834033705'];
 
+async function iniciarTickets(client) {
   const canalPostulaciones = await client.channels.fetch(canalPostulacionesId);
 
   // Limpiar mensajes anteriores del bot y enviar mensaje con botón
@@ -33,14 +33,6 @@ module.exports = async (client) => {
     const mensaje = `📩 **¿Quieres postular a la LSPD?**\n\nPresiona el botón de abajo para abrir un ticket. Serás atendido por el equipo correspondiente.`;
 
     canalPostulaciones.send({ content: mensaje, components: [row] }).catch(console.error);
-  }
-
-  // Función auxiliar para enviar auditoría
-  async function registrarAuditoria(guild, texto) {
-    const canalAuditoria = guild.channels.cache.get(canalAuditoriaId);
-    if (canalAuditoria) {
-      await canalAuditoria.send(texto).catch(console.error);
-    }
   }
 
   // Manejar interacción botones
@@ -110,9 +102,7 @@ module.exports = async (client) => {
 
     if (customId === 'cerrar_ticket') {
       await interaction.reply('🔒 Este ticket será cerrado en 5 segundos...');
-      // Registro auditoría cierre ticket
       await registrarAuditoria(guild, `🔒 Ticket cerrado: **${channel.name}**\nPor: <@${user.id}> (${user.tag})`);
-
       setTimeout(() => {
         channel.delete().catch(console.error);
       }, 5000);
@@ -120,7 +110,6 @@ module.exports = async (client) => {
 
     if (customId === 'registrar_auditoria') {
       const canalAuditoria = guild.channels.cache.get(canalAuditoriaId);
-
       if (canalAuditoria) {
         canalAuditoria.send(`📋 Registro de auditoría:\nCanal: ${channel.name}\nPor: ${user.tag} (${user.id})`);
         interaction.reply({ content: '✅ Auditoría registrada.', flags: 64 });
@@ -129,4 +118,16 @@ module.exports = async (client) => {
       }
     }
   });
+}
+
+// Función auxiliar
+async function registrarAuditoria(guild, texto) {
+  const canalAuditoria = guild.channels.cache.get(canalAuditoriaId);
+  if (canalAuditoria) {
+    await canalAuditoria.send(texto).catch(console.error);
+  }
+}
+
+module.exports = {
+  iniciarTickets
 };

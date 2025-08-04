@@ -20,7 +20,7 @@ const client = new Client({
 
 client.once('ready', async () => {
   console.log(`✅ BotRP conectado como ${client.user.tag}`);
-  iniciarTickets(client);
+  await iniciarTickets(client); // ✅ ahora sí funciona
   await ranking.iniciar(client);
   await servicio.iniciar(client);
 });
@@ -43,6 +43,7 @@ client.on('guildMemberAdd', async (member) => {
   await bienvenida(member);
 });
 
+// Manejo de interacciones extra (si las hay)
 client.on(Events.InteractionCreate, async (interaction) => {
   let handled = false;
 
@@ -50,9 +51,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     handled = await servicio.onInteraction(interaction, client);
   }
 
-  if (!handled && tickets.onInteraction) {
-    handled = await tickets.onInteraction(interaction, client);
-  }
+  // puedes agregar más handlers si los necesitas
 });
 
 // Verifica el token antes de iniciar sesión
@@ -62,7 +61,7 @@ if (!token || typeof token !== 'string') {
   process.exit(1);
 }
 
-// Inicia sesión y maneja errores
+// Inicia sesión
 client.login(token).catch((error) => {
   console.error('Error al iniciar sesión:', error);
   process.exit(1);
