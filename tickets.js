@@ -12,7 +12,11 @@ const canalAuditoriaId = '1402039588108636242'; // Canal auditoria
 
 async function iniciar(client) {
   try {
-    const canalPostulaciones = await client.channels.fetch(canalPostulacionesId).catch(() => null);
+    console.log(`🔍 Intentando inicializar tickets en canal ${canalPostulacionesId}`);
+    const canalPostulaciones = await client.channels.fetch(canalPostulacionesId).catch((error) => {
+      console.error(`❌ Error al obtener canal de postulaciones (ID: ${canalPostulacionesId}): ${error}`);
+      return null;
+    });
     if (!canalPostulaciones || canalPostulaciones.type !== ChannelType.GuildText) {
       console.error(`❌ No se encontró el canal de postulaciones (ID: ${canalPostulacionesId}) o no es un canal de texto.`);
       return;
@@ -30,6 +34,7 @@ async function iniciar(client) {
     await canalPostulaciones.send({ content: mensaje, components: [row] }).catch((error) => {
       console.error(`❌ Error al enviar mensaje al canal de postulaciones (ID: ${canalPostulacionesId}): ${error}`);
     });
+    console.log(`✅ Mensaje de postulaciones enviado en canal ${canalPostulacionesId}`);
   } catch (error) {
     console.error(`❌ Error al inicializar tickets: ${error}`);
   }
@@ -39,29 +44,39 @@ async function onInteraction(interaction, client) {
   if (!interaction.isButton()) return false;
 
   try {
-    console.log(`🔘 Botón pulsado: ${interaction.customId} por ${interaction.user.tag}`);
+    console.log(`🔘 Botón pulsado: ${interaction.customId} por ${interaction.user.tag} en servidor ${interaction.guild?.name || 'desconocido'}`);
 
     if (interaction.customId === 'crear_ticket') {
+      console.log(`🔍 Procesando creación de ticket para ${interaction.user.tag}`);
       const user = interaction.user;
       const nombreCanal = `ticket-${user.username.toLowerCase()}`.replace(/[^a-z0-9\-]/gi, '');
+      console.log(`🔍 Nombre del canal de ticket: ${nombreCanal}`);
 
-      const categoria = await interaction.guild.channels.fetch(categoriaTicketsId).catch(() => null);
+      console.log(`🔍 Obteniendo categoría ${categoriaTicketsId}`);
+      const categoria = await interaction.guild.channels.fetch(categoriaTicketsId).catch((error) => {
+        console.error(`❌ Error al obtener categoría (ID: ${categoriaTicketsId}): ${error}`);
+        return null;
+      });
       if (!categoria || categoria.type !== ChannelType.GuildCategory) {
         console.error(`❌ No se encontró la categoría para tickets (ID: ${categoriaTicketsId}) o no es una categoría.`);
         await interaction.reply({ content: '❌ No se pudo encontrar la categoría para crear tickets.', ephemeral: true });
         return true;
       }
+      console.log(`✅ Categoría encontrada: ${categoria.name}`);
 
+      console.log(`🔍 Verificando si existe un canal con nombre ${nombreCanal}`);
       const canalExistente = interaction.guild.channels.cache.find(c => c.name === nombreCanal);
       if (canalExistente) {
         await interaction.reply({
           content: '❗ Ya tienes un ticket abierto.',
           ephemeral: true
         });
-        console.log(`⚠️ Usuario ${user.tag} intentó abrir ticket pero ya tiene uno.`);
+        console.log(`⚠️ Usuario ${user.tag} intentó abrir ticket pero ya tiene uno: ${canalExistente.name}`);
         return true;
       }
+      console.log(`✅ No existe canal previo para ${nombreCanal}`);
 
+      console.log(`🔍 Creando canal de ticket en categoría ${categoriaTicketsId}`);
       const canal = await interaction.guild.channels.create({
         name: nombreCanal,
         type: ChannelType.GuildText,
@@ -88,9 +103,10 @@ async function onInteraction(interaction, client) {
           }
         ]
       }).catch((error) => {
-        console.error(`❌ Error al crear canal de ticket: ${error}`);
+        console.error(`❌ Error al crear canal de ticket (${nombreCanal}): ${error}`);
         throw error;
       });
+      console.log(`✅ Canal creado: ${canal.name}`);
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -103,26 +119,28 @@ async function onInteraction(interaction, client) {
           .setStyle(ButtonStyle.Secondary)
       );
 
+      console.log(`🔍 Enviando mensaje inicial en canal ${canal.name}`);
       await canal.send({
         content: `👋 ¡Hola <@${user.id}>! Gracias por postular.\nUn miembro del staff te atenderá pronto.\n<@&1401652584221249588> <@&1402042683366572032>`,
         components: [row]
       }).catch((error) => {
-        console.error(`❌ Error al enviar mensaje al ticket: ${error}`);
+        console.error(`❌ Error al enviar mensaje al ticket (${canal.name}): ${error}`);
       });
+      console.log(`✅ Mensaje enviado en canal ${canal.name}`);
 
       await interaction.reply({
         content: `✅ Se ha creado tu ticket en <#${canal.id}>.`,
         ephemeral: true
       });
-
       console.log(`🟢 Ticket creado: ${nombreCanal} para usuario ${user.tag}`);
       return true;
     }
 
     if (interaction.customId === 'cerrar_ticket') {
       const canal = interaction.channel;
+      console.log(`🔍 Cerrando ticket ${canal.name}`);
       await interaction.reply('🔒 Este ticket será cerrado en 5 segundos...');
-      setTimeout(() => canal.delete().catch(() => console.error(`❌ Error al cerrar ticket: ${canal.name}`)), 5000);
+      setTimeout(() => canal.delete().catch((error) => console.error(`❌ Error al cerrar ticket (${canal.name}): ${error}`)), 5000);
       console.log(`🟡 Ticket cerrado: ${canal.name}`);
       return true;
     }
@@ -130,6 +148,7 @@ async function onInteraction(interaction, client) {
     if (interaction.customId === 'registrar_auditoria') {
       const canal = interaction.channel;
       const user = interaction.user;
+      console.log(`🔍 Registrando auditoría en canal ${canal.name} por ${user.tag}`);
       const canalAuditoria = interaction.guild.channels.cache.get(canalAuditoriaId);
 
       if (canalAuditoria) {
@@ -145,9 +164,11 @@ async function onInteraction(interaction, client) {
 
     return false;
   } catch (error) {
-    console.error('❌ Error en onInteraction:', error);
+    console.error(`❌ Error en onInteraction para ${interaction.customId}: ${error.stack}`);
     if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: '❌ Ocurrió un error al procesar la interacción.', ephemeral: true });
+      await interaction.reply({ content: '❌ Ocurrió un error al procesar la interacción.', ephemeral: true }).catch((err) => {
+        console.error(`❌ Error al responder interacción: ${err}`);
+      });
     }
     return true;
   }
