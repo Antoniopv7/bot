@@ -4,7 +4,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const bienvenida = require('./bienvenida');
-const tickets = require('./tickets');
+const { iniciarTickets } = require('./tickets');
 const ranking = require('./ranking');
 const servicio = require('./servicio');
 
@@ -16,11 +16,12 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessageReactions,
   ],
+  partials: [Partials.Channel]
 });
 
 client.once('ready', async () => {
   console.log(`✅ BotRP conectado como ${client.user.tag}`);
-  await iniciarTickets(client);
+  iniciarTickets(client);
   await ranking.iniciar(client);
   await servicio.iniciar(client);
 });
