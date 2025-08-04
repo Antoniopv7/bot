@@ -3,7 +3,7 @@ const { Client, GatewayIntentBits, Events } = require('discord.js');
 const bienvenida = require('./bienvenida');
 const tickets = require('./tickets');
 const ranking = require('./ranking');
-const servicio = require('./Servicio');
+const servicio = require('./servicio');
 
 const client = new Client({
   intents: [
