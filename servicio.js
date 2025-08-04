@@ -8,109 +8,118 @@ const {
   Events
 } = require('discord.js');
 
-const servicioActivo = new Map(); // Usuarios en servicio
-const tiemposAcumulados = new Map(); // Tiempo total trabajado
-const canalServicioId = '1398071067121025134'; // Canal donde va la tabla de servicio
+const servicioActivo = new Map();
+const tiemposAcumulados = new Map();
+const canalServicioId = '1402040587653222461'; // Canal asistencia
 
 const ranking = require('./ranking');
 
 async function iniciar(client) {
-  const canal = await client.channels.fetch(canalServicioId);
-  if (!canal || canal.type !== ChannelType.GuildText) return;
+  try {
+    const canal = await client.channels.fetch(canalServicioId).catch(() => null);
+    if (!canal || canal.type !== ChannelType.GuildText) {
+      console.error(`❌ No se encontró el canal de servicio (ID: ${canalServicioId}) o no es un canal de texto.`);
+      return;
+    }
 
-  const opcionesServicio = [
-    { label: 'Comisaría', value: 'comisaria' },
-    { label: 'Central', value: 'central' },
-    { label: 'Supervisando', value: 'supervisando' },
-    { label: 'Entrenamiento', value: 'entrenamiento' },
-    { label: 'Capacitando', value: 'capacitando' },
-    { label: 'Patrullaje', value: 'patrullaje' }
-  ];
+    const opcionesServicio = [
+      { label: 'Comisaría', value: 'comisaria' },
+      { label: 'Central', value: 'central' },
+      { label: 'Supervisando', value: 'supervisando' },
+      { label: 'Entrenamiento', value: 'entrenamiento' },
+      { label: 'Capacitando', value: 'capacitando' },
+      { label: 'Patrullaje', value: 'patrullaje' }
+    ];
 
-  const menuDesplegable = new StringSelectMenuBuilder()
-    .setCustomId('seleccionar_servicio')
-    .setPlaceholder('📋 Selecciona el tipo de servicio')
-    .addOptions(opcionesServicio);
+    const menuDesplegable = new StringSelectMenuBuilder()
+      .setCustomId('seleccionar_servicio')
+      .setPlaceholder('📋 Selecciona el tipo de servicio')
+      .addOptions(opcionesServicio);
 
-  const botonEntrar = new ButtonBuilder()
-    .setCustomId('confirmar_entrar')
-    .setLabel('✅ Entrar en servicio')
-    .setStyle(ButtonStyle.Success);
+    const botonEntrar = new ButtonBuilder()
+      .setCustomId('confirmar_entrar')
+      .setLabel('✅ Entrar en servicio')
+      .setStyle(ButtonStyle.Success);
 
-  const botonSalir = new ButtonBuilder()
-    .setCustomId('salir_servicio')
-    .setLabel('❌ Salir de servicio')
-    .setStyle(ButtonStyle.Danger);
+    const botonSalir = new ButtonBuilder()
+      .setCustomId('salir_servicio')
+      .setLabel('❌ Salir de servicio')
+      .setStyle(ButtonStyle.Danger);
 
-  const rowMenu = new ActionRowBuilder().addComponents(menuDesplegable);
-  const rowBotones = new ActionRowBuilder().addComponents(botonEntrar, botonSalir);
+    const rowMenu = new ActionRowBuilder().addComponents(menuDesplegable);
+    const rowBotones = new ActionRowBuilder().addComponents(botonEntrar, botonSalir);
 
-  // Enviar o actualizar mensaje de control servicio
-  let mensajeControl;
-  const mensajes = await canal.messages.fetch({ limit: 10 });
-  mensajeControl = mensajes.find(m => m.author.id === client.user.id);
-  if (!mensajeControl) {
-    mensajeControl = await canal.send({
-      content: '**🕒 Control de horas de servicio**\nSelecciona el servicio e ingresa cuando estés listo.',
-      components: [rowMenu, rowBotones],
-      embeds: [crearEmbedTabla()]
-    });
-  } else {
-    await mensajeControl.edit({ embeds: [crearEmbedTabla()], components: [rowMenu, rowBotones] });
-  }
-
-  // Evitar múltiples listeners: remover antes de agregar
-  client.removeAllListeners(Events.InteractionCreate);
-  client.on(Events.InteractionCreate, async interaction => {
-    if (!interaction.isStringSelectMenu() && !interaction.isButton()) return;
-
-    const userId = interaction.user.id;
-
-    if (interaction.customId === 'seleccionar_servicio') {
-      const servicio = interaction.values[0];
-      servicioActivo.set(userId, { tipo: servicio, inicio: null });
-      await interaction.reply({
-        content: `📋 Has seleccionado el servicio: **${servicio}**`,
-        ephemeral: true
+    let mensajeControl;
+    const mensajes = await canal.messages.fetch({ limit: 10 }).catch(() => null);
+    mensajeControl = mensajes?.find(m => m.author.id === client.user.id);
+    if (!mensajeControl) {
+      mensajeControl = await canal.send({
+        content: '**🕒 Control de horas de servicio**\nSelecciona el servicio e ingresa cuando estés listo.',
+        components: [rowMenu, rowBotones],
+        embeds: [crearEmbedTabla()]
+      }).catch((error) => {
+        console.error(`❌ Error al enviar mensaje de control (ID: ${canalServicioId}): ${error}`);
       });
-      return;
+    } else {
+      await mensajeControl.edit({ embeds: [crearEmbedTabla()], components: [rowMenu, rowBotones] }).catch((error) => {
+        console.error(`❌ Error al editar mensaje de control (ID: ${canalServicioId}): ${error}`);
+      });
     }
 
-    if (interaction.customId === 'confirmar_entrar') {
-      const datos = servicioActivo.get(userId);
-      if (!datos || !datos.tipo) {
-        return interaction.reply({ content: '⚠️ Primero debes seleccionar un tipo de servicio.', ephemeral: true });
-      }
-      if (datos.inicio) {
-        return interaction.reply({ content: '⚠️ Ya estás en servicio.', ephemeral: true });
-      }
+    client.removeAllListeners(Events.InteractionCreate);
+    client.on(Events.InteractionCreate, async interaction => {
+      if (!interaction.isStringSelectMenu() && !interaction.isButton()) return;
 
-      datos.inicio = Date.now();
-      servicioActivo.set(userId, datos);
+      const userId = interaction.user.id;
 
-      await interaction.reply({ content: `✅ Has iniciado servicio: **${datos.tipo}**`, ephemeral: true });
-      await actualizarEmbedTabla(mensajeControl, client);
-      return;
-    }
-
-    if (interaction.customId === 'salir_servicio') {
-      const datos = servicioActivo.get(userId);
-      if (!datos || !datos.inicio) {
-        return interaction.reply({ content: '⚠️ No estás en servicio actualmente.', ephemeral: true });
+      if (interaction.customId === 'seleccionar_servicio') {
+        const servicio = interaction.values[0];
+        servicioActivo.set(userId, { tipo: servicio, inicio: null });
+        await interaction.reply({
+          content: `📋 Has seleccionado el servicio: **${servicio}**`,
+          ephemeral: true
+        });
+        return;
       }
 
-      const tiempo = Math.floor((Date.now() - datos.inicio) / 1000);
-      servicioActivo.delete(userId);
+      if (interaction.customId === 'confirmar_entrar') {
+        const datos = servicioActivo.get(userId);
+        if (!datos || !datos.tipo) {
+          return interaction.reply({ content: '⚠️ Primero debes seleccionar un tipo de servicio.', ephemeral: true });
+        }
+        if (datos.inicio) {
+          return interaction.reply({ content: '⚠️ Ya estás en servicio.', ephemeral: true });
+        }
 
-      const total = (tiemposAcumulados.get(userId) || 0) + tiempo;
-      tiemposAcumulados.set(userId, total);
+        datos.inicio = Date.now();
+        servicioActivo.set(userId, datos);
 
-      await interaction.reply({ content: `❌ Has salido de servicio. Tiempo trabajado: **${formatTiempo(tiempo)}**`, ephemeral: true });
-      await actualizarEmbedTabla(mensajeControl, client);
-      await ranking.actualizarRanking(client, tiemposAcumulados);
-      return;
-    }
-  });
+        await interaction.reply({ content: `✅ Has iniciado servicio: **${datos.tipo}**`, ephemeral: true });
+        await actualizarEmbedTabla(mensajeControl, client);
+        return;
+      }
+
+      if (interaction.customId === 'salir_servicio') {
+        const datos = servicioActivo.get(userId);
+        if (!datos || !datos.inicio) {
+          return interaction.reply({ content: '⚠️ No estás en servicio actualmente.', ephemeral: true });
+        }
+
+        const tiempo = Math.floor((Date.now() - datos.inicio) / 1000);
+        servicioActivo.delete(userId);
+
+        const total = (tiemposAcumulados.get(userId) || 0) + tiempo;
+        tiemposAcumulados.set(userId, total);
+
+        await interaction.reply({ content: `❌ Has salido de servicio. Tiempo trabajado: **${formatTiempo(tiempo)}**`, ephemeral: true });
+        await actualizarEmbedTabla(mensajeControl, client);
+        await ranking.actualizarRanking(client, tiemposAcumulados);
+        return;
+      }
+    });
+  } catch (error) {
+    console.error(`❌ Error al inicializar servicio: ${error}`);
+  }
 }
 
 function crearEmbedTabla() {
@@ -139,8 +148,14 @@ function crearEmbedTabla() {
 }
 
 async function actualizarEmbedTabla(mensaje, client) {
-  const nuevoEmbed = crearEmbedTabla();
-  await mensaje.edit({ embeds: [nuevoEmbed] });
+  try {
+    const nuevoEmbed = crearEmbedTabla();
+    await mensaje.edit({ embeds: [nuevoEmbed] }).catch((error) => {
+      console.error(`❌ Error al actualizar tabla de servicio: ${error}`);
+    });
+  } catch (error) {
+    console.error(`❌ Error en actualizarEmbedTabla: ${error}`);
+  }
 }
 
 function formatTiempo(segundos) {

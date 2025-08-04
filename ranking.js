@@ -1,37 +1,56 @@
 const { ChannelType, EmbedBuilder } = require('discord.js');
-const canalRankingId = '1398072037406408825'; // Canal de ranking
+const canalRankingId = '1402040622508146830'; // Canal top horas
 
 async function iniciar(client) {
-  const canal = await client.channels.fetch(canalRankingId);
-  if (!canal || canal.type !== ChannelType.GuildText) return;
+  try {
+    const canal = await client.channels.fetch(canalRankingId).catch(() => null);
+    if (!canal || canal.type !== ChannelType.GuildText) {
+      console.error(`❌ No se encontró el canal de ranking (ID: ${canalRankingId}) o no es un canal de texto.`);
+      return;
+    }
 
-  // Mensaje inicial para el ranking (opcional)
-  const mensajes = await canal.messages.fetch({ limit: 10 });
-  let mensaje = mensajes.find(m => m.author.id === client.user.id);
-  if (!mensaje) {
-    await canal.send({
-      content: '**🏆 Ranking de Servicio**',
-      embeds: [crearEmbedRanking([])]
-    });
+    const mensajes = await canal.messages.fetch({ limit: 10 }).catch(() => null);
+    let mensaje = mensajes?.find(m => m.author.id === client.user.id);
+    if (!mensaje) {
+      await canal.send({
+        content: '**🏆 Ranking de Servicio**',
+        embeds: [crearEmbedRanking([])]
+      }).catch((error) => {
+        console.error(`❌ Error al enviar mensaje de ranking (ID: ${canalRankingId}): ${error}`);
+      });
+    }
+  } catch (error) {
+    console.error(`❌ Error al inicializar ranking: ${error}`);
   }
 }
 
 async function actualizarRanking(client, tiemposAcumulados) {
-  const canal = await client.channels.fetch(canalRankingId);
-  if (!canal) return;
+  try {
+    const canal = await client.channels.fetch(canalRankingId).catch(() => null);
+    if (!canal) {
+      console.error(`❌ No se encontró el canal de ranking (ID: ${canalRankingId}).`);
+      return;
+    }
 
-  const sorted = Array.from(tiemposAcumulados.entries()).sort((a, b) => b[1] - a[1]);
-  const top3 = sorted.slice(0, 3);
+    const sorted = Array.from(tiemposAcumulados.entries()).sort((a, b) => b[1] - a[1]);
+    const top3 = sorted.slice(0, 3);
 
-  const embed = crearEmbedRanking(top3);
+    const embed = crearEmbedRanking(top3);
 
-  const mensajes = await canal.messages.fetch({ limit: 10 });
-  const mensajeExistente = mensajes.find(m => m.author.id === client.user.id);
+    const mensajes = await canal.messages.fetch({ limit: 10 }).catch(() => null);
+    const mensajeExistente = mensajes?.find(m => m.author.id === client.user.id);
 
-  if (mensajeExistente) {
-    await mensajeExistente.edit({ embeds: [embed] });
-  } else {
-    await canal.send({ embeds: [embed] });
+    if (mensajeExistente) {
+      await mensajeExistente.edit({ embeds: [embed] }).catch((error) => {
+        console.error(`❌ Error al editar mensaje de ranking (ID: ${canalRankingId}): ${error}`);
+      });
+    } else {
+      await canal.send({ embeds: [embed] }).catch((error) => {
+        console.error(`❌ Error al enviar mensaje de ranking (ID: ${canalRankingId}): ${error}`);
+      });
+    }
+  } catch (error) {
+    console.error(`❌ Error al actualizar ranking: ${error}`);
   }
 }
 

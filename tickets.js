@@ -6,14 +6,18 @@ const {
   PermissionsBitField
 } = require('discord.js');
 
-const canalPostulacionesId = '1398051755509551265';
-const categoriaTicketsId = '1398053117018505216';
-const canalAuditoriaId = '1398053198111182899';
+const canalPostulacionesId = '1402040366282047609'; // Canal postulaciones
+const categoriaTicketsId = '1401657156935356558'; // Categoría Tickets
+const canalAuditoriaId = '1402039588108636242'; // Canal auditoria
 
 async function iniciar(client) {
-  const canalPostulaciones = await client.channels.fetch(canalPostulacionesId);
+  try {
+    const canalPostulaciones = await client.channels.fetch(canalPostulacionesId).catch(() => null);
+    if (!canalPostulaciones || canalPostulaciones.type !== ChannelType.GuildText) {
+      console.error(`❌ No se encontró el canal de postulaciones (ID: ${canalPostulacionesId}) o no es un canal de texto.`);
+      return;
+    }
 
-  if (canalPostulaciones) {
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('crear_ticket')
@@ -23,13 +27,14 @@ async function iniciar(client) {
 
     const mensaje = `📩 **¿Quieres postular a la LSPD?**\n\nPresiona el botón de abajo para abrir un ticket. Serás atendido por el equipo correspondiente.`;
 
-    await canalPostulaciones.send({ content: mensaje, components: [row] }).catch(console.error);
-  } else {
-    console.log('❌ No se encontró el canal de postulaciones para enviar el mensaje inicial.');
+    await canalPostulaciones.send({ content: mensaje, components: [row] }).catch((error) => {
+      console.error(`❌ Error al enviar mensaje al canal de postulaciones (ID: ${canalPostulacionesId}): ${error}`);
+    });
+  } catch (error) {
+    console.error(`❌ Error al inicializar tickets: ${error}`);
   }
 }
 
-// Función para manejar las interacciones (botones)
 async function onInteraction(interaction, client) {
   if (!interaction.isButton()) return false;
 
@@ -40,15 +45,13 @@ async function onInteraction(interaction, client) {
       const user = interaction.user;
       const nombreCanal = `ticket-${user.username.toLowerCase()}`.replace(/[^a-z0-9\-]/gi, '');
 
-      // Verificar existencia categoría
       const categoria = await interaction.guild.channels.fetch(categoriaTicketsId).catch(() => null);
-      if (!categoria) {
-        console.log('❌ No se encontró la categoría para tickets.');
+      if (!categoria || categoria.type !== ChannelType.GuildCategory) {
+        console.error(`❌ No se encontró la categoría para tickets (ID: ${categoriaTicketsId}) o no es una categoría.`);
         await interaction.reply({ content: '❌ No se pudo encontrar la categoría para crear tickets.', ephemeral: true });
         return true;
       }
 
-      // Buscar canal existente
       const canalExistente = interaction.guild.channels.cache.find(c => c.name === nombreCanal);
       if (canalExistente) {
         await interaction.reply({
@@ -76,14 +79,17 @@ async function onInteraction(interaction, client) {
             ]
           },
           {
-            id: '1397827547668025508', // Staff role 1
+            id: '1401652584221249588', // Rol Administrador
             allow: [PermissionsBitField.Flags.ViewChannel]
           },
           {
-            id: '1398025581848821873', // Staff role 2
+            id: '1402042683366572032', // Rol Staff
             allow: [PermissionsBitField.Flags.ViewChannel]
           }
         ]
+      }).catch((error) => {
+        console.error(`❌ Error al crear canal de ticket: ${error}`);
+        throw error;
       });
 
       const row = new ActionRowBuilder().addComponents(
@@ -98,8 +104,10 @@ async function onInteraction(interaction, client) {
       );
 
       await canal.send({
-        content: `👋 ¡Hola <@${user.id}>! Gracias por postular.\nUn miembro del staff te atenderá pronto.\n<@1397827547668025508> <@1398025581848821873>`,
+        content: `👋 ¡Hola <@${user.id}>! Gracias por postular.\nUn miembro del staff te atenderá pronto.\n<@&1401652584221249588> <@&1402042683366572032>`,
         components: [row]
+      }).catch((error) => {
+        console.error(`❌ Error al enviar mensaje al ticket: ${error}`);
       });
 
       await interaction.reply({
@@ -108,14 +116,13 @@ async function onInteraction(interaction, client) {
       });
 
       console.log(`🟢 Ticket creado: ${nombreCanal} para usuario ${user.tag}`);
-
       return true;
     }
 
     if (interaction.customId === 'cerrar_ticket') {
       const canal = interaction.channel;
       await interaction.reply('🔒 Este ticket será cerrado en 5 segundos...');
-      setTimeout(() => canal.delete().catch(() => {}), 5000);
+      setTimeout(() => canal.delete().catch(() => console.error(`❌ Error al cerrar ticket: ${canal.name}`)), 5000);
       console.log(`🟡 Ticket cerrado: ${canal.name}`);
       return true;
     }
@@ -126,18 +133,17 @@ async function onInteraction(interaction, client) {
       const canalAuditoria = interaction.guild.channels.cache.get(canalAuditoriaId);
 
       if (canalAuditoria) {
-        canalAuditoria.send(`📋 Registro de auditoría:\nCanal: ${canal.name}\nPor: ${user.tag} (${user.id})`);
+        await canalAuditoria.send(`📋 Registro de auditoría:\nCanal: ${canal.name}\nPor: ${user.tag} (${user.id})`);
         await interaction.reply({ content: '✅ Auditoría registrada.', ephemeral: true });
         console.log(`🟢 Auditoría registrada en canal ${canalAuditoria.name} por ${user.tag}`);
       } else {
         await interaction.reply({ content: '❌ No se encontró el canal de auditoría.', ephemeral: true });
-        console.log('❌ No se encontró el canal de auditoría para registrar.');
+        console.error(`❌ No se encontró el canal de auditoría (ID: ${canalAuditoriaId}).`);
       }
       return true;
     }
 
     return false;
-
   } catch (error) {
     console.error('❌ Error en onInteraction:', error);
     if (!interaction.replied && !interaction.deferred) {

@@ -1,32 +1,28 @@
 module.exports = async (member) => {
-  // ID del canal de bienvenida
-  const canalBienvenidaId = '1397827043869069323';
+  const canalBienvenidaId = '1401645362225348700'; // Canal de bienvenida
   const canalBienvenida = member.guild.channels.cache.get(canalBienvenidaId);
 
   if (canalBienvenida) {
-    canalBienvenida.send(`👋 ¡Bienvenido/a ${member.user.username} a Los Santos Police Department de Pachavice RP!
-
-Por favor, te invitamos a leer las **normativas y reglas** del servidor para mantener una buena convivencia.
-
-Si deseas unirte a la facción, no dudes en abrir un ticket en el canal de **postulación**.
-
-¡Disfruta tu estadía! 🚓`);
+    try {
+      await canalBienvenida.send(`👋 ¡Bienvenido/a ${member.user.username} a Los Santos Police Department de Pachavice RP!\n\nPor favor, te invitamos a leer las **normativas y reglas** del servidor para mantener una buena convivencia.\n\nSi deseas unirte a la facción, no dudes en abrir un ticket en el canal de **postulación**.\n\n¡Disfruta tu estadía! 🚓`);
+    } catch (error) {
+      console.error(`❌ Error al enviar mensaje de bienvenida (ID: ${canalBienvenidaId}): ${error}`);
+    }
   } else {
-    console.log('❌ Canal de bienvenida no encontrado.');
+    console.error(`❌ Canal de bienvenida no encontrado (ID: ${canalBienvenidaId}).`);
   }
 
-  // ID del rol Ciudadano
-  const rolCiudadanoId = '1398043027083104316';
+  const rolCiudadanoId = '1402043467282251878'; // Rol Civil
   const rol = member.guild.roles.cache.get(rolCiudadanoId);
 
   if (rol) {
     try {
       await member.roles.add(rol);
-      console.log(`✅ Rol Ciudadano asignado a ${member.user.tag}`);
+      console.log(`✅ Rol Civil asignado a ${member.user.tag}`);
     } catch (error) {
-      console.error(`❌ Error asignando rol: ${error}`);
+      console.error(`❌ Error asignando rol Civil (ID: ${rolCiudadanoId}): ${error}`);
     }
   } else {
-    console.log('❌ No se encontró el rol "Ciudadano".');
+    console.error(`❌ No se encontró el rol Civil (ID: ${rolCiudadanoId}).`);
   }
 };
