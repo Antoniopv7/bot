@@ -20,7 +20,6 @@ const client = new Client({
 
 client.once('ready', async () => {
   console.log(`✅ BotRP conectado como ${client.user.tag}`);
-  await tickets.iniciar(client);
   await ranking.iniciar(client);
   await servicio.iniciar(client);
 });
