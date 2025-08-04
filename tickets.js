@@ -9,6 +9,7 @@ const {
 const canalPostulacionesId = '1402040366282047609'; // Canal postulaciones
 const categoriaTicketsId = '1401657156935356558'; // Categoría Tickets
 const canalAuditoriaId = '1402039588108636242'; // Canal auditoria
+const staffRoleIds = ['1401652584221249588', '1402042683366572032', '1402043308834033705']; // Administrador, Staff, Instructor
 
 async function iniciar(client) {
   try {
@@ -36,7 +37,7 @@ async function iniciar(client) {
     });
     console.log(`✅ Mensaje de postulaciones enviado en canal ${canalPostulacionesId}`);
   } catch (error) {
-    console.error(`❌ Error al inicializar tickets: ${error}`);
+    console.error(`❌ Error al inicializar tickets: ${error.stack}`);
   }
 }
 
@@ -68,7 +69,7 @@ async function onInteraction(interaction, client) {
       const canalExistente = interaction.guild.channels.cache.find(c => c.name === nombreCanal);
       if (canalExistente) {
         await interaction.reply({
-          content: '❗ Ya tienes un ticket abierto.',
+          content: `❗ Ya tienes un ticket abierto: <#${canalExistente.id}>.`,
           ephemeral: true
         });
         console.log(`⚠️ Usuario ${user.tag} intentó abrir ticket pero ya tiene uno: ${canalExistente.name}`);
@@ -77,31 +78,29 @@ async function onInteraction(interaction, client) {
       console.log(`✅ No existe canal previo para ${nombreCanal}`);
 
       console.log(`🔍 Creando canal de ticket en categoría ${categoriaTicketsId}`);
+      const permissionOverwrites = [
+        {
+          id: interaction.guild.roles.everyone,
+          deny: [PermissionsBitField.Flags.ViewChannel]
+        },
+        {
+          id: user.id,
+          allow: [
+            PermissionsBitField.Flags.ViewChannel,
+            PermissionsBitField.Flags.SendMessages
+          ]
+        },
+        ...staffRoleIds.map(roleId => ({
+          id: roleId,
+          allow: [PermissionsBitField.Flags.ViewChannel]
+        }))
+      ];
+
       const canal = await interaction.guild.channels.create({
         name: nombreCanal,
         type: ChannelType.GuildText,
         parent: categoriaTicketsId,
-        permissionOverwrites: [
-          {
-            id: interaction.guild.roles.everyone,
-            deny: [PermissionsBitField.Flags.ViewChannel]
-          },
-          {
-            id: user.id,
-            allow: [
-              PermissionsBitField.Flags.ViewChannel,
-              PermissionsBitField.Flags.SendMessages
-            ]
-          },
-          {
-            id: '1401652584221249588', // Rol Administrador
-            allow: [PermissionsBitField.Flags.ViewChannel]
-          },
-          {
-            id: '1402042683366572032', // Rol Staff
-            allow: [PermissionsBitField.Flags.ViewChannel]
-          }
-        ]
+        permissionOverwrites
       }).catch((error) => {
         console.error(`❌ Error al crear canal de ticket (${nombreCanal}): ${error}`);
         throw error;
@@ -119,9 +118,10 @@ async function onInteraction(interaction, client) {
           .setStyle(ButtonStyle.Secondary)
       );
 
+      const staffMentions = staffRoleIds.map(roleId => `<@&${roleId}>`).join(' ');
       console.log(`🔍 Enviando mensaje inicial en canal ${canal.name}`);
       await canal.send({
-        content: `👋 ¡Hola <@${user.id}>! Gracias por postular.\nUn miembro del staff te atenderá pronto.\n<@&1401652584221249588> <@&1402042683366572032>`,
+        content: `👋 ¡Hola <@${user.id}>! Gracias por postular.\nUn miembro del staff te atenderá pronto.\n${staffMentions}`,
         components: [row]
       }).catch((error) => {
         console.error(`❌ Error al enviar mensaje al ticket (${canal.name}): ${error}`);
@@ -138,7 +138,18 @@ async function onInteraction(interaction, client) {
 
     if (interaction.customId === 'cerrar_ticket') {
       const canal = interaction.channel;
-      console.log(`🔍 Cerrando ticket ${canal.name}`);
+      const user = interaction.user;
+      console.log(`🔍 Cerrando ticket ${canal.name} por ${user.tag}`);
+
+      console.log(`🔍 Registrando auditoría automática para cierre de ticket ${canal.name}`);
+      const canalAuditoria = interaction.guild.channels.cache.get(canalAuditoriaId);
+      if (canalAuditoria) {
+        await canalAuditoria.send(`📋 Auditoría automática (cierre de ticket):\nCanal: ${canal.name}\nCerrado por: ${user.tag} (${user.id})\nFecha: ${new Date().toISOString()}`);
+        console.log(`🟢 Auditoría automática registrada en canal ${canalAuditoria.name} por ${user.tag}`);
+      } else {
+        console.error(`❌ No se encontró el canal de auditoría (ID: ${canalAuditoriaId}) para auditoría automática.`);
+      }
+
       await interaction.reply('🔒 Este ticket será cerrado en 5 segundos...');
       setTimeout(() => canal.delete().catch((error) => console.error(`❌ Error al cerrar ticket (${canal.name}): ${error}`)), 5000);
       console.log(`🟡 Ticket cerrado: ${canal.name}`);
@@ -148,13 +159,13 @@ async function onInteraction(interaction, client) {
     if (interaction.customId === 'registrar_auditoria') {
       const canal = interaction.channel;
       const user = interaction.user;
-      console.log(`🔍 Registrando auditoría en canal ${canal.name} por ${user.tag}`);
+      console.log(`🔍 Registrando auditoría manual en canal ${canal.name} por ${user.tag}`);
       const canalAuditoria = interaction.guild.channels.cache.get(canalAuditoriaId);
 
       if (canalAuditoria) {
-        await canalAuditoria.send(`📋 Registro de auditoría:\nCanal: ${canal.name}\nPor: ${user.tag} (${user.id})`);
+        await canalAuditoria.send(`📋 Registro de auditoría manual:\nCanal: ${canal.name}\nPor: ${user.tag} (${user.id})\nFecha: ${new Date().toISOString()}`);
         await interaction.reply({ content: '✅ Auditoría registrada.', ephemeral: true });
-        console.log(`🟢 Auditoría registrada en canal ${canalAuditoria.name} por ${user.tag}`);
+        console.log(`🟢 Auditoría manual registrada en canal ${canalAuditoria.name} por ${user.tag}`);
       } else {
         await interaction.reply({ content: '❌ No se encontró el canal de auditoría.', ephemeral: true });
         console.error(`❌ No se encontró el canal de auditoría (ID: ${canalAuditoriaId}).`);
