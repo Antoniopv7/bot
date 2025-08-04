@@ -1,4 +1,7 @@
-require('dotenv').config();
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config(); // Carga .env solo en desarrollo local
+}
+
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const bienvenida = require('./bienvenida');
 const tickets = require('./tickets');
@@ -52,4 +55,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+// Verifica el token antes de iniciar sesión
+const token = process.env.DISCORD_TOKEN;
+if (!token || typeof token !== 'string') {
+  console.error('Error: DISCORD_TOKEN no está definido o es inválido');
+  process.exit(1);
+}
+
+// Inicia sesión y maneja errores
+client.login(token).catch((error) => {
+  console.error('Error al iniciar sesión:', error);
+  process.exit(1);
+});
