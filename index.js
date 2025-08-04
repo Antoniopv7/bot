@@ -20,7 +20,7 @@ const client = new Client({
 
 client.once('ready', async () => {
   console.log(`✅ BotRP conectado como ${client.user.tag}`);
-  await tickets(client); // Ejecuta tickets.js directamente
+  await tickets.iniciar(client);
   await ranking.iniciar(client);
   await servicio.iniciar(client);
 });
@@ -49,15 +49,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (servicio.onInteraction) {
     handled = await servicio.onInteraction(interaction, client);
   }
-  // No se llama a tickets.onInteraction porque tickets.js maneja sus propias interacciones
+
+  if (!handled && tickets.onInteraction) {
+    handled = await tickets.onInteraction(interaction, client);
+  }
 });
 
+// Verifica el token antes de iniciar sesión
 const token = process.env.DISCORD_TOKEN;
 if (!token || typeof token !== 'string') {
   console.error('Error: DISCORD_TOKEN no está definido o es inválido');
   process.exit(1);
 }
 
+// Inicia sesión y maneja errores
 client.login(token).catch((error) => {
   console.error('Error al iniciar sesión:', error);
   process.exit(1);
